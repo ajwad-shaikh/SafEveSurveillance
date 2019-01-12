@@ -90,9 +90,10 @@ public class DashboardActivity extends Activity {
                 final String message = intent.getStringExtra("message");
                 StringBuilder smsBuilder = new StringBuilder();
                 String strbody = message;
-                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
+                //SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
                 smsBuilder.append(". \t ");
-                smsBuilder.append("\n  \t\t   Timestamp: "+sdf.format(Calendar.getInstance(Locale.getDefault())) + " \t ");
+
+                //smsBuilder.append("\n  \t\t   Timestamp: "+ sdf.format(Calendar.getInstance(Locale.getDefault())) + " \t ");
                 smsBuilder.append("\n"+strbody);
                 String final1 = smsBuilder.toString();
                 Integer hashFinal = strbody.hashCode();
@@ -116,7 +117,7 @@ public class DashboardActivity extends Activity {
                                     message.indexOf(endPlace)).replaceAll("[^\\d.]", ""));
                     mDatabase.child("device").child(deviceID.toString()).child("d_lat").setValue(dLat);
                     mDatabase.child("device").child(deviceID.toString()).child("d_long").setValue(dLong);
-                    mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(1);
+                    mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(0);
                 }catch(Exception e) {
                     contentText += "A SafEve Device around you reported distress. Report immediately.";
                 }
@@ -221,7 +222,7 @@ public class DashboardActivity extends Activity {
 
                         mDatabase.child("device").child(deviceID.toString()).child("d_lat").setValue(dLat);
                         mDatabase.child("device").child(deviceID.toString()).child("d_long").setValue(dLong);
-                        mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(1);
+                        mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(0);
                     }catch(Exception e) {
                         continue;
                     }
