@@ -36,9 +36,11 @@ import com.google.firebase.database.FirebaseDatabase;
 
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 
 import static android.content.ContentValues.TAG;
 
@@ -74,16 +76,54 @@ public class DashboardActivity extends Activity {
 
     }
 
+    @Override
+    public void onResume() {
+        LocalBroadcastManager.getInstance(this).
+                registerReceiver(receiver, new IntentFilter("Inbox"));
+        super.onResume();
+    }
+
     private BroadcastReceiver receiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            if (intent.getAction().equalsIgnoreCase("Inbox")) {
+            if (Objects.requireNonNull(intent.getAction()).equalsIgnoreCase("Inbox")) {
                 final String message = intent.getStringExtra("message");
-                listItems.add(0, clickCounter++ + " " + message);
+                StringBuilder smsBuilder = new StringBuilder();
+                String strbody = message;
+                SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
+                smsBuilder.append(". \t ");
+                smsBuilder.append("\n  \t\t   Timestamp: "+sdf.format(Calendar.getInstance(Locale.getDefault())) + " \t ");
+                smsBuilder.append("\n"+strbody);
+                String final1 = smsBuilder.toString();
+                Integer hashFinal = strbody.hashCode();
+                listItems.add(final1);
                 adapter.notifyDataSetChanged();
+                String contentText = "";
+                String devPlace = "Device ID : ";
+                String latPlace = "Latitude : ";
+                String longPlace = "Longitude : ";
+                String endPlace = "</SafEveAlert>";
+                try {
+                    Integer deviceID = Integer.parseInt(message.substring
+                            (message.indexOf(devPlace) + devPlace.length(),
+                                    message.indexOf(latPlace)).replaceAll("[^\\d.]", ""));
+                    contentText += "SafEve Device Number " + deviceID + " around you reported distress. Report immediately.";
+                    Float dLat = Float.valueOf(message.substring
+                            (message.indexOf(latPlace) + latPlace.length(),
+                                    message.indexOf(longPlace)).replaceAll("[^\\d.]", ""));
+                    Float dLong = Float.valueOf(message.substring
+                            (message.indexOf(longPlace) + longPlace.length(),
+                                    message.indexOf(endPlace)).replaceAll("[^\\d.]", ""));
+                    mDatabase.child("device").child(deviceID.toString()).child("d_lat").setValue(dLat);
+                    mDatabase.child("device").child(deviceID.toString()).child("d_long").setValue(dLong);
+                    mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(1);
+                }catch(Exception e) {
+                    contentText += "A SafEve Device around you reported distress. Report immediately.";
+                }
+
                 mBuilder.setSmallIcon(R.drawable.logo);
-                mBuilder.setContentTitle("New SafEve Distress Received!");
-                mBuilder.setContentText(message);
+                mBuilder.setContentTitle("New SafEve Distress Reported!");
+                mBuilder.setContentText(contentText);
                 mBuilder.setAutoCancel(true);
                 Intent resultIntent = new Intent(DashboardActivity.this, DashboardActivity.class);
                 stackBuilder.addParentStack(DashboardActivity.class);
@@ -91,14 +131,10 @@ public class DashboardActivity extends Activity {
                 PendingIntent resultPendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
                 mBuilder.setContentIntent(resultPendingIntent);
                 NotificationManager mNotificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+                assert mNotificationManager != null;
                 mNotificationManager.notify(0, mBuilder.build());
             }
         }
-
-        final String SMS_URI_INBOX = "content://sms/inbox";
-        final String SMS_URI_ALL = "content://sms/";
-        StringBuilder smsBuilder = new StringBuilder();
-        int msgCount = 0;
     };
 
     private  boolean checkAndRequestPermissions() {
@@ -140,7 +176,7 @@ public class DashboardActivity extends Activity {
             public void onComplete(Task<AuthResult> task) {
                 if (task.isSuccessful()) {
                     Log.d(TAG, "firebase auth success");
-                    lookforSMS();
+                    lookForSMS();
                 } else {
                     Log.d(TAG, "firebase auth failed");
                 }
@@ -148,9 +184,8 @@ public class DashboardActivity extends Activity {
         });
     }
 
-    private void lookforSMS(){
+    private void lookForSMS(){
         final String SMS_URI_INBOX = "content://sms/inbox";
-        final String SMS_URI_ALL = "content://sms/";
         StringBuilder smsBuilder = new StringBuilder();
         int msgCount = 0;
         try {
@@ -158,21 +193,15 @@ public class DashboardActivity extends Activity {
             String[] projection = new String[]{"_id", "address", "person", "body", "date", "type"};
             //String tquery = "address='"+ tref + "'";
             Cursor cur = getContentResolver().query(uri, projection, null, null, "date desc");
-            if (cur.moveToFirst()) {
-                int index_Address = cur.getColumnIndex("address");
-                int index_Person = cur.getColumnIndex("person");
+            if (cur.moveToLast()) {
                 int index_Body = cur.getColumnIndex("body");
                 int index_Date = cur.getColumnIndex("date");
-                int index_Type = cur.getColumnIndex("type");
                 do {
                     smsBuilder = new StringBuilder();
-                    String strAddress = cur.getString(index_Address);
-                    int intPerson = cur.getInt(index_Person);
                     String strbody = cur.getString(index_Body);
                     long longDate = cur.getLong(index_Date);
                     SimpleDateFormat sdf = new SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault());
                     Date resultDate = new Date(longDate);
-                    int int_Type = cur.getInt(index_Type);
                     if(!strbody.startsWith("<SafEveAlert>"))
                         continue;
                     String devPlace = "Device ID : ";
@@ -193,24 +222,18 @@ public class DashboardActivity extends Activity {
                         mDatabase.child("device").child(deviceID.toString()).child("d_lat").setValue(dLat);
                         mDatabase.child("device").child(deviceID.toString()).child("d_long").setValue(dLong);
                         mDatabase.child("device").child(deviceID.toString()).child("enforcer_assigned").setValue(1);
-                    }catch(Exception e){
+                    }catch(Exception e) {
                         continue;
                     }
-
-
-
                     smsBuilder.append(msgCount++ + ". \t ");
-                    //smsBuilder.append("[ ");
                     smsBuilder.append("\n  \t\t   Timestamp: "+sdf.format(resultDate) + " \t ");
                     smsBuilder.append("\n"+strbody);
-                    //smsBuilder.append(int_Type);
-                    //smsBuilder.append(" ]\n\n");
                     String final1 = smsBuilder.toString();
                     Integer hashFinal = strbody.hashCode();
                     listItems.add(final1);
                     adapter.notifyDataSetChanged();
                     //Log.d("Address", strAddress);
-                } while (cur.moveToNext());
+                } while (cur.moveToPrevious());
                 //clickCounter = msgCount;
                 if (!cur.isClosed()) {
                     cur.close();
